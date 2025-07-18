@@ -44,7 +44,7 @@ def transcode(
     fps = int(os.environ.get("VIDEO_ENCODE_FPS", "24"))
     max_w = int(os.environ.get("VIDEO_ENCODE_MAX_WIDTH", "9999"))
     max_h = int(os.environ.get("VIDEO_ENCODE_MAX_HEIGHT", "8888"))
-    verbose = ast.literal_eval(os.environ.get("VIDEO_ENCODE_VERBOSE", "False"))
+    verbose = ast.literal_eval(os.environ.get("VIDEO_ENCODE_VERBOSE", "True"))
 
     normalize_video(
         in_path=in_path,
