@@ -25,8 +25,8 @@ const ACCEPT_VIDEOS = {
   'video/quicktime': ['.mov'],
 };
 
-// 70 MB default max video upload size
-const MAX_FILE_SIZE_IN_MB = 70;
+// 10000 MB default max video upload size
+const MAX_FILE_SIZE_IN_MB = 10000;
 const MAX_VIDEO_UPLOAD_SIZE = MAX_FILE_SIZE_IN_MB * 1024 ** 2;
 
 type Props = {

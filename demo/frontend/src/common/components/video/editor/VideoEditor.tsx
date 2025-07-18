@@ -20,7 +20,7 @@ import {PropsWithChildren, RefObject, useEffect, useRef} from 'react';
 import Video, {VideoRef} from '../Video';
 import {videoAtom} from './atoms';
 
-const MAX_VIDEO_WIDTH = 1280;
+const MAX_VIDEO_WIDTH = 9999;
 
 const styles = stylex.create({
   editorContainer: {

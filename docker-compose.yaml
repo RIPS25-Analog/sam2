@@ -18,10 +18,10 @@ services:
       - ./demo/data/:/data/:rw
     environment:
       - SERVER_ENVIRONMENT=DEV
-      - GUNICORN_WORKERS=1
+      - GUNICORN_WORKERS=8
       # Inference API needs to have at least 2 threads to handle an incoming
       # parallel cancel propagation request
-      - GUNICORN_THREADS=2
+      - GUNICORN_THREADS=16
       - GUNICORN_PORT=5000
       - API_URL=http://localhost:7263
       - DEFAULT_VIDEO_PATH=gallery/05_default_juggle.mp4
@@ -30,8 +30,8 @@ services:
       - VIDEO_ENCODE_CODEC=libx264
       - VIDEO_ENCODE_CRF=23
       - VIDEO_ENCODE_FPS=24
-      - VIDEO_ENCODE_MAX_WIDTH=1280
-      - VIDEO_ENCODE_MAX_HEIGHT=720
+      - VIDEO_ENCODE_MAX_WIDTH=9999
+      - VIDEO_ENCODE_MAX_HEIGHT=8888
       - VIDEO_ENCODE_VERBOSE=False
     deploy:
       resources:
