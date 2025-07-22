@@ -13,12 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import DownloadOption from './DownloadOption';
+import DownloadFramesOption from './DownloadFramesOption';
+import DownloadOriginalOption from './DownloadOriginalOption';
 
 export default function ShareSection() {
   return (
     <div className="p-5 md:p-8">
-      <DownloadOption />
+      <DownloadFramesOption />
+      <DownloadOriginalOption />
     </div>
   );
 }

@@ -46,6 +46,7 @@ import {
   EffectUpdateResponse,
   EncodingCompletedResponse,
   EncodingStateUpdateResponse,
+  FrameExportCompletedResponse,
   FilmstripResponse,
   FrameUpdateResponse,
   PauseRequest,
@@ -407,7 +408,214 @@ export default class VideoWorkerContext {
           progress,
         });
       },
+      // Don't pass FPS - use original frame durations for now
     );
+    this.sendResponse<EncodingCompletedResponse>(
+      'encodingCompleted',
+      {
+        file,
+      },
+      [file],
+    );
+  }
+
+  async saveProcessed() {
+    const decodedVideo = this._decodedVideo;
+    invariant(
+      decodedVideo !== null,
+      'cannot save processed video because there is no decoded video available',
+    );
+
+    const canvas = new OffscreenCanvas(this.width, this.height);
+    const ctx = canvas.getContext('2d', {willReadFrequently: true});
+    invariant(
+      ctx !== null,
+      'cannot save processed video because failed to construct offscreen canvas context',
+    );
+
+    const form = new CanvasForm(ctx);
+
+    // Use non-null assertion since we've already checked above
+    const videoFramesLength = decodedVideo!.frames.length;
+
+    const file = await encodeVideo(
+      this.width,
+      this.height,
+      videoFramesLength,
+      this._processedFramesGenerator(decodedVideo!, canvas, form),
+      progress => {
+        this.sendResponse<EncodingStateUpdateResponse>('encodingStateUpdate', {
+          progress,
+        });
+      },
+      // Don't pass FPS - use original frame durations for now
+    );
+    this.sendResponse<EncodingCompletedResponse>(
+      'encodingCompleted',
+      {
+        file,
+      },
+      [file],
+    );
+  }
+
+  async saveProcessedWithCustomFps(targetFps: number) {
+    const decodedVideo = this._decodedVideo;
+    invariant(
+      decodedVideo !== null,
+      'cannot save processed video because there is no decoded video available',
+    );
+
+    const canvas = new OffscreenCanvas(this.width, this.height);
+    const ctx = canvas.getContext('2d', {willReadFrequently: true});
+    invariant(
+      ctx !== null,
+      'cannot save processed video because failed to construct offscreen canvas context',
+    );
+
+    const form = new CanvasForm(ctx);
+
+    // Use non-null assertion since we've already checked above
+    const videoFramesLength = decodedVideo!.frames.length;
+
+    const file = await encodeVideo(
+      this.width,
+      this.height,
+      videoFramesLength,
+      this._processedFramesGenerator(decodedVideo!, canvas, form),
+      progress => {
+        this.sendResponse<EncodingStateUpdateResponse>('encodingStateUpdate', {
+          progress,
+        });
+      },
+      targetFps, // Use the custom FPS instead of original video's FPS
+    );
+    this.sendResponse<EncodingCompletedResponse>(
+      'encodingCompleted',
+      {
+        file,
+      },
+      [file],
+    );
+  }
+
+  async exportProcessedFrames() {
+    const decodedVideo = this._decodedVideo;
+    invariant(
+      decodedVideo !== null,
+      'cannot export frames because there is no decoded video available',
+    );
+
+    const canvas = new OffscreenCanvas(this.width, this.height);
+    const ctx = canvas.getContext('2d', {willReadFrequently: true});
+    invariant(
+      ctx !== null,
+      'cannot export frames because failed to construct offscreen canvas context',
+    );
+
+    const form = new CanvasForm(ctx);
+    const frames: {blob: Blob, filename: string}[] = [];
+
+    for (let frameIndex = 0; frameIndex < decodedVideo!.frames.length; frameIndex++) {
+      // Render with masks but WITHOUT watermark
+      await this._drawFrameImpl(form, frameIndex, false);
+      
+      // Convert canvas to blob (PNG image)
+      const blob = await canvas.convertToBlob({
+        type: 'image/png',
+        quality: 1.0
+      });
+      
+      const filename = `frame_${frameIndex.toString().padStart(4, '0')}.png`;
+      frames.push({blob, filename});
+      
+      // Update progress
+      const progress = (frameIndex + 1) / decodedVideo!.frames.length;
+      this.sendResponse<EncodingStateUpdateResponse>('encodingStateUpdate', {
+        progress,
+      });
+    }
+
+    // Send all frames back for download
+    this.sendResponse<FrameExportCompletedResponse>('frameExportCompleted', {
+      frames: frames.map(f => ({
+        blob: f.blob,
+        filename: f.filename
+      }))
+    });
+  }
+
+  private async *_processedFramesGenerator(
+    decodedVideo: DecodedVideo,
+    canvas: OffscreenCanvas,
+    form: CanvasForm,
+  ): AsyncGenerator<ImageFrame, undefined> {
+    const frames = decodedVideo.frames;
+
+    for (let frameIndex = 0; frameIndex < frames.length; ++frameIndex) {
+      // Render with masks but WITHOUT watermark (enableWatermark = false)
+      await this._drawFrameImpl(form, frameIndex, false);
+
+      const frame = frames[frameIndex];
+      const videoFrame = new VideoFrame(canvas, {
+        timestamp: frame.bitmap.timestamp,
+      });
+
+      yield {
+        bitmap: videoFrame,
+        timestamp: frame.timestamp,
+        duration: frame.duration,
+      };
+
+      videoFrame.close();
+    }
+  }
+
+  async saveOriginal() {
+    const decodedVideo = this._decodedVideo;
+    invariant(
+      decodedVideo !== null,
+      'cannot save original video because there is no decoded video available',
+    );
+
+    // Use non-null assertion since we've already checked above
+    const videoFramesLength = decodedVideo!.frames.length;
+    
+    // Create a simple frame generator for the original frames without any modifications
+    const originalFramesGenerator = async function* (video: DecodedVideo): AsyncGenerator<ImageFrame, undefined> {
+      const frames = video.frames;
+      
+      for (let frameIndex = 0; frameIndex < frames.length; ++frameIndex) {
+        const frame = frames[frameIndex];
+        
+        // Create a VideoFrame directly from the original bitmap without any processing
+        const videoFrame = new VideoFrame(frame.bitmap, {
+          timestamp: frame.bitmap.timestamp,
+        });
+
+        yield {
+          bitmap: videoFrame,
+          timestamp: frame.timestamp,
+          duration: frame.duration,
+        };
+
+        videoFrame.close();
+      }
+    };
+
+    const file = await encodeVideo(
+      this.width,
+      this.height,
+      videoFramesLength,
+      originalFramesGenerator(decodedVideo!),
+      progress => {
+        this.sendResponse<EncodingStateUpdateResponse>('encodingStateUpdate', {
+          progress,
+        });
+      },
+      // Don't pass FPS - use original frame durations for now
+    );
+    
     this.sendResponse<EncodingCompletedResponse>(
       'encodingCompleted',
       {
@@ -425,7 +633,7 @@ export default class VideoWorkerContext {
     const frames = decodedVideo.frames;
 
     for (let frameIndex = 0; frameIndex < frames.length; ++frameIndex) {
-      await this._drawFrameImpl(form, frameIndex, true);
+      await this._drawFrameImpl(form, frameIndex, false);
 
       const frame = frames[frameIndex];
       const videoFrame = new VideoFrame(canvas, {

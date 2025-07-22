@@ -15,20 +15,20 @@
  */
 import {Package} from '@carbon/icons-react';
 import OptionButton from './OptionButton';
-import useDownloadVideo from './useDownloadVideo';
+import useDownloadFrames from './useDownloadFrames';
 
-export default function DownloadOption() {
-  const {download, state} = useDownloadVideo();
+export default function DownloadFramesOption() {
+  const {downloadFrames, state} = useDownloadFrames();
 
   return (
     <OptionButton
-      title="Download Processed"
+      title="Download Frames"
       Icon={Package}
       loadingProps={{
-        loading: state === 'started' || state === 'encoding',
-        label: 'Downloading...',
+        loading: state === 'started' || state === 'exporting',
+        label: 'Exporting frames...',
       }}
-      onClick={download}
+      onClick={downloadFrames}
     />
   );
 }

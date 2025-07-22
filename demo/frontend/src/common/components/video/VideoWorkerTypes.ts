@@ -71,6 +71,14 @@ export type SetEffectRequest = Request<
 
 export type EncodeVideoRequest = Request<'encode', unknown>;
 
+export type SaveOriginalVideoRequest = Request<'saveOriginal', unknown>;
+
+export type SaveProcessedVideoRequest = Request<'saveProcessed', unknown>;
+
+export type SaveProcessedVideoWithCustomFpsRequest = Request<'saveProcessedWithCustomFps', {fps: number}>;
+
+export type ExportProcessedFramesRequest = Request<'exportProcessedFrames', unknown>;
+
 export type EnableStatsRequest = Request<'enableStats', unknown>;
 
 export type VideoWorkerRequest =
@@ -83,6 +91,10 @@ export type VideoWorkerRequest =
   | FilmstripRequest
   | SetEffectRequest
   | EncodeVideoRequest
+  | SaveOriginalVideoRequest
+  | SaveProcessedVideoRequest
+  | SaveProcessedVideoWithCustomFpsRequest
+  | ExportProcessedFramesRequest
   | EnableStatsRequest;
 
 export type VideoWorkerRequestMessageEvent = MessageEvent<VideoWorkerRequest>;
@@ -127,12 +139,22 @@ export type LoadStartResponse = Request<'loadstart', LoadStartEvent>;
 
 export type EffectUpdateResponse = Request<'effectUpdate', EffectUpdateEvent>;
 
+export type FrameExportCompletedEvent = {
+  frames: Array<{blob: Blob, filename: string}>;
+};
+
+export type FrameExportCompletedResponse = Request<
+  'frameExportCompleted',
+  FrameExportCompletedEvent
+>;
+
 export type VideoWorkerResponse =
   | ErrorResponse
   | FilmstripResponse
   | DecodeResponse
   | EncodingStateUpdateResponse
   | EncodingCompletedResponse
+  | FrameExportCompletedResponse
   | PlayResponse
   | PauseResponse
   | FrameUpdateResponse

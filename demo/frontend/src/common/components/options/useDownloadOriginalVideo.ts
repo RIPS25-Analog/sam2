@@ -30,7 +30,7 @@ type State = {
   download: (shouldSave?: boolean) => Promise<MP4ArrayBuffer>;
 };
 
-export default function useDownloadVideo(): State {
+export default function useDownloadOriginalVideo(): State {
   const [downloadingState, setDownloadingState] =
     useState<DownloadingState>('default');
   const [progress, setProgress] = useState<number>(0);
@@ -48,7 +48,7 @@ export default function useDownloadVideo(): State {
         const file = event.file;
 
         if (shouldSave) {
-          saveVideo(file, getFileName());
+          saveVideo(file, getOriginalFileName());
         }
 
         video?.removeEventListener('encodingCompleted', onEncodingComplete);
@@ -66,9 +66,15 @@ export default function useDownloadVideo(): State {
       if (downloadingState === 'default' || downloadingState === 'completed') {
         setDownloadingState('started');
         video?.pause();
-        video?.saveProcessed(); // Use saveProcessed instead of encode for better quality
+        video?.saveOriginal(); // Use the new saveOriginal method instead of encode
       }
     });
+  }
+
+  function getOriginalFileName(): string {
+    const baseName = getFileName();
+    // Replace the filename to indicate it's the original
+    return baseName.replace('.mp4', '_original.mp4');
   }
 
   function saveVideo(file: MP4ArrayBuffer, fileName: string) {

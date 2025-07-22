@@ -15,6 +15,7 @@
  */
 import {cloneFrame} from '@/common/codecs/WebCodecUtils';
 import {FileStream} from '@/common/utils/FileUtils';
+import {createDecoderDebugger} from '@/common/utils/VideoDecoderDebugger';
 import {
   createFile,
   DataStream,
@@ -47,6 +48,9 @@ function decodeInternal(
   return new Promise((resolve, reject) => {
     const imageFrames: ImageFrame[] = [];
     const globalSamples: MP4Sample[] = [];
+    
+    // Create debugger to track frame dropping
+    const frameDebugger = createDecoderDebugger();
 
     let decoder: VideoDecoder;
 
@@ -78,12 +82,32 @@ function decodeInternal(
 
       const timescale = track.timescale;
       const edits = track.edits;
+      
+      // Log edit list information for debugging
+      frameDebugger.logEditInfo(edits, timescale);
+      console.log(`🎥 Video track metadata:`);
+      console.log(`  📊 nb_samples (expected frames): ${track.nb_samples}`);
+      console.log(`  ⏱️ duration: ${track.duration}`);
+      console.log(`  🔢 timescale: ${timescale}`);
+      console.log(`  📐 dimensions: ${track.track_width}x${track.track_height}`);
+      console.log(`  🎬 codec: ${track.codec}`);
+      console.log(`  📝 edit lists: ${edits?.length || 0} entries`);
+      
+      if (edits && edits.length > 0) {
+        console.log(`  📝 Edit list details:`);
+        edits.forEach((edit, i) => {
+          console.log(`    [${i}] media_time: ${edit.media_time}, segment_duration: ${edit.segment_duration}`);
+        });
+      }
 
       let frame_n = 0;
       decoder = new VideoDecoder({
         // Be careful with any await in this function. The VideoDecoder will
         // not await output and continue calling it with decoded frames.
         async output(inputFrame) {
+          frameDebugger.stats.totalDecodedFrames++;
+          console.log(`🎬 Frame ${frame_n} decoded: timestamp=${inputFrame.timestamp}, totalDecoded=${frameDebugger.stats.totalDecodedFrames}`);
+          
           if (track == null) {
             reject(new Error(`${identifier} does not contain a video track`));
             return;
@@ -100,10 +124,17 @@ function decodeInternal(
             const cts = Math.round(
               (inputFrame.timestamp * timescale) / 1_000_000,
             );
+            console.log(`📝 Edit list check - Frame ${frame_n}: cts=${cts}, media_time=${edits[0].media_time}, timescale=${timescale}`);
             if (cts < edits[0].media_time) {
+              console.log(`❌ Frame ${frame_n} DROPPED by edit list filter (cts ${cts} < media_time ${edits[0].media_time})`);
+              frameDebugger.logFrameDrop('edit_list_filter', frame_n, inputFrame.timestamp);
               inputFrame.close();
               return;
+            } else {
+              console.log(`✅ Frame ${frame_n} passed edit list filter`);
             }
+          } else {
+            console.log(`📝 Frame ${frame_n}: No edit list to check`);
           }
 
           // Workaround for Chrome where the decoding stops at ~17 frames unless
@@ -124,6 +155,8 @@ function decodeInternal(
           }
 
           const sample = globalSamples[frame_n];
+          console.log(`🧪 Frame ${frame_n}: Checking sample - exists=${sample != null}, globalSamples.length=${globalSamples.length}, expected_nb_samples=${saveTrack.nb_samples}`);
+          
           if (sample != null) {
             const duration = (sample.duration * 1_000_000) / sample.timescale;
             imageFrames.push({
@@ -131,6 +164,8 @@ function decodeInternal(
               timestamp: inputFrame.timestamp,
               duration,
             });
+            frameDebugger.stats.finalFrameCount++;
+            console.log(`✅ Frame ${frame_n} ADDED to imageFrames (total frames now: ${imageFrames.length})`);
             // Sort frames in order of timestamp. This is needed because Safari
             // can return decoded frames out of order.
             imageFrames.sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1));
@@ -146,13 +181,40 @@ function decodeInternal(
                   saveTrack.timescale,
               });
             }
+          } else {
+            console.log(`❌ Frame ${frame_n} DROPPED - no corresponding sample in globalSamples`);
+            frameDebugger.logFrameDrop('missing_sample', frame_n, inputFrame.timestamp);
+            // Frame decoded but no corresponding sample - this shouldn't happen in normal cases
+            inputFrame.close();
           }
           frame_n++;
+          console.log(`📊 Frame ${frame_n - 1} processing complete. Next frame: ${frame_n}, Expected total: ${saveTrack.nb_samples}`);
 
           if (saveTrack.nb_samples === frame_n) {
+            console.log(`🏁 All frames processed! Expected: ${saveTrack.nb_samples}, Processed: ${frame_n}`);
             // Sort frames in order of timestamp. This is needed because Safari
             // can return decoded frames out of order.
             imageFrames.sort((a, b) => (a.timestamp > b.timestamp ? 1 : -1));
+            
+            // Log final debugging information
+            console.log('🎯 FINAL FRAME PROCESSING SUMMARY:', {
+              expectedFrames: saveTrack.nb_samples,
+              totalDecoded: frameDebugger.stats.totalDecodedFrames,
+              droppedByEdits: frameDebugger.stats.framesDroppedByEdits,
+              droppedByMissingSample: frameDebugger.stats.framesDroppedByMissingSample,
+              finalFrameCount: frameDebugger.stats.finalFrameCount,
+              actualImageFrames: imageFrames.length,
+              missingFrames: saveTrack.nb_samples - imageFrames.length
+            });
+            
+            console.log('🔍 Frame drop breakdown:');
+            console.log(`  📥 Total frames decoded by browser: ${frameDebugger.stats.totalDecodedFrames}`);
+            console.log(`  ❌ Dropped by edit list: ${frameDebugger.stats.framesDroppedByEdits}`);
+            console.log(`  ❌ Dropped by missing sample: ${frameDebugger.stats.framesDroppedByMissingSample}`);
+            console.log(`  ✅ Successfully processed: ${frameDebugger.stats.finalFrameCount}`);
+            console.log(`  📊 Final imageFrames array length: ${imageFrames.length}`);
+            console.log(`  🚨 Missing frames: ${saveTrack.nb_samples - imageFrames.length}`);
+            
             resolve({
               width: saveTrack.track_width,
               height: saveTrack.track_height,
@@ -220,6 +282,8 @@ function decodeInternal(
       _user: unknown,
       samples: MP4Sample[],
     ) => {
+      console.log(`📦 Received ${samples.length} samples from MP4 file. Total samples now: ${globalSamples.length + samples.length}`);
+      
       for (const sample of samples) {
         globalSamples.push(sample);
         decoder.decode(
@@ -231,6 +295,8 @@ function decodeInternal(
           }),
         );
       }
+      
+      console.log(`🔧 All samples processed. Total globalSamples: ${globalSamples.length}, Expected from track: ${track?.nb_samples}`);
       await decoder.flush();
       decoder.close();
     };

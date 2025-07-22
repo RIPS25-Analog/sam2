@@ -80,6 +80,31 @@ self.addEventListener(
           break;
         }
 
+        // Save original video
+        case 'saveOriginal': {
+          await context.saveOriginal();
+          break;
+        }
+
+        // Save processed video
+        case 'saveProcessed': {
+          await context.saveProcessed();
+          break;
+        }
+
+        // Save processed video with custom FPS
+        case 'saveProcessedWithCustomFps': {
+          const {fps} = event.data;
+          await context.saveProcessedWithCustomFps(fps);
+          break;
+        }
+
+        // Export processed frames
+        case 'exportProcessedFrames': {
+          await context.exportProcessedFrames();
+          break;
+        }
+
         case 'enableStats': {
           statsEnabled = true;
           context.enableStats();

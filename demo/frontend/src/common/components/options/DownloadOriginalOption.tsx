@@ -13,20 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {Package} from '@carbon/icons-react';
+import {Download} from '@carbon/icons-react';
 import OptionButton from './OptionButton';
-import useDownloadVideo from './useDownloadVideo';
+import useDownloadOriginalVideo from './useDownloadOriginalVideo';
 
-export default function DownloadOption() {
-  const {download, state} = useDownloadVideo();
+export default function DownloadOriginalOption() {
+  const {download, state} = useDownloadOriginalVideo();
 
   return (
     <OptionButton
-      title="Download Processed"
-      Icon={Package}
+      title="Download Original"
+      Icon={Download}
       loadingProps={{
         loading: state === 'started' || state === 'encoding',
-        label: 'Downloading...',
+        label: 'Downloading Original...',
       }}
       onClick={download}
     />

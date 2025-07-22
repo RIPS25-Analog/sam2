@@ -102,6 +102,10 @@ export type VideoRef = {
     options?: EffectOptions,
   ): void;
   encode(): void;
+  saveOriginal(): void;
+  saveProcessed(): void;
+  saveProcessedWithCustomFps(fps: number): void;
+  exportProcessedFrames(): void;
   streamMasks(): void;
   abortStreamMasks(): Promise<void>;
   addEventListener<K extends keyof VideoWorkerEventMap>(
@@ -203,6 +207,18 @@ export default forwardRef<VideoRef, Props>(function Video(
       },
       encode(): void {
         bridge.encode();
+      },
+      saveOriginal(): void {
+        bridge.saveOriginal();
+      },
+      saveProcessed(): void {
+        bridge.saveProcessed();
+      },
+      saveProcessedWithCustomFps(fps: number): void {
+        bridge.saveProcessedWithCustomFps(fps);
+      },
+      exportProcessedFrames(): void {
+        bridge.exportProcessedFrames();
       },
       streamMasks(): void {
         bridge.streamMasks();

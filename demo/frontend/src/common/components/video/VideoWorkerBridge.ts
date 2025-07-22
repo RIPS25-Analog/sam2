@@ -48,8 +48,13 @@ import {deserializeError, type ErrorObject} from 'serialize-error';
 import {EventEmitter} from './EventEmitter';
 import {
   EncodeVideoRequest,
+  SaveOriginalVideoRequest,
+  SaveProcessedVideoRequest,
+  SaveProcessedVideoWithCustomFpsRequest,
+  ExportProcessedFramesRequest,
   FilmstripRequest,
   FilmstripResponse,
+  FrameExportCompletedEvent,
   FrameUpdateRequest,
   PauseRequest,
   PlayRequest,
@@ -149,6 +154,7 @@ export interface VideoWorkerEventMap {
   decode: DecodeEvent;
   encodingStateUpdate: EncodingStateUpdateEvent;
   encodingCompleted: EncodingCompletedEvent;
+  frameExportCompleted: FrameExportCompletedEvent;
   play: PlayEvent;
   pause: PauseEvent;
   filmstrip: FilmstripEvent;
@@ -234,6 +240,9 @@ export default class VideoWorkerBridge extends EventEmitter<VideoWorkerEventMap>
             break;
           case 'sessionStarted':
             this._sessionId = event.data.sessionId;
+            break;
+          case 'frameExportCompleted':
+            // Handle frame export completion
             break;
         }
         this.trigger(event.data.action, event.data);
@@ -325,6 +334,22 @@ export default class VideoWorkerBridge extends EventEmitter<VideoWorkerEventMap>
 
   encode(): void {
     this.sendRequest<EncodeVideoRequest>('encode');
+  }
+
+  saveOriginal(): void {
+    this.sendRequest<SaveOriginalVideoRequest>('saveOriginal');
+  }
+
+  saveProcessed(): void {
+    this.sendRequest<SaveProcessedVideoRequest>('saveProcessed');
+  }
+
+  saveProcessedWithCustomFps(fps: number): void {
+    this.sendRequest<SaveProcessedVideoWithCustomFpsRequest>('saveProcessedWithCustomFps', { fps });
+  }
+
+  exportProcessedFrames(): void {
+    this.sendRequest<ExportProcessedFramesRequest>('exportProcessedFrames');
   }
 
   initializeTracker(name: keyof Trackers, options: TrackerOptions): void {

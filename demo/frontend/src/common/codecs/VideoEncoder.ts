@@ -16,10 +16,9 @@
 import {ImageFrame} from '@/common/codecs/VideoDecoder';
 import {MP4ArrayBuffer, createFile} from 'mp4box';
 
-// The selection of timescale and seconds/key-frame value are
+// The selection of timescale value is
 // explained in the following docs: https://github.com/vjeux/mp4-h264-re-encode
 const TIMESCALE = 90000;
-const SECONDS_PER_KEY_FRAME = 2;
 
 export function encode(
   width: number,
@@ -27,10 +26,10 @@ export function encode(
   numFrames: number,
   framesGenerator: AsyncGenerator<ImageFrame, unknown>,
   progressCallback?: (progress: number) => void,
+  fps?: number,
 ): Promise<MP4ArrayBuffer> {
   return new Promise((resolve, reject) => {
     let encodedFrameIndex = 0;
-    let nextKeyFrameTimestamp = 0;
     let trackID: number | null = null;
     const durations: number[] = [];
 
@@ -88,10 +87,10 @@ export function encode(
         codec: 'avc1.4d0034',
         width: roundToNearestEven(width),
         height: roundToNearestEven(height),
-        bitrate: 14_000_000,
+        bitrate: 50_000_000, // Increased to 50Mbps for maximum quality
         alpha: 'discard',
-        bitrateMode: 'variable',
-        latencyMode: 'realtime',
+        bitrateMode: 'constant', // Changed to constant for consistent quality
+        latencyMode: 'quality', // Changed from 'realtime' to 'quality' for better output
       };
       const supportedConfig =
         await VideoEncoder.isConfigSupported(configuration);
@@ -104,15 +103,21 @@ export function encode(
       }
 
       for await (const frame of framesGenerator) {
-        const {bitmap, duration, timestamp} = frame;
-        durations.push(duration);
-        let keyFrame = false;
-        if (timestamp >= nextKeyFrameTimestamp) {
-          await encoder.flush();
-          keyFrame = true;
-          nextKeyFrameTimestamp = timestamp + SECONDS_PER_KEY_FRAME * 1e6;
+        const {bitmap} = frame;
+        let frameDuration;
+        
+        if (fps) {
+          // Use consistent frame duration for target FPS
+          // Frame duration in microseconds: 1 second = 1,000,000 microseconds
+          frameDuration = Math.round(1_000_000 / fps);
+        } else {
+          // Use original frame duration
+          frameDuration = frame.duration;
         }
-        encoder.encode(bitmap, {keyFrame});
+        
+        durations.push(frameDuration);
+        // Make every frame a keyframe for maximum quality
+        encoder.encode(bitmap, {keyFrame: true});
         bitmap.close();
       }
 
